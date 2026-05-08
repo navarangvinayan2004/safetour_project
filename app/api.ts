@@ -4,7 +4,7 @@ export const BASE_URL = 'https://safetour-project-5wwy.onrender.com';
 
 const API = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000,
 });
 
 // Function to set auth token
