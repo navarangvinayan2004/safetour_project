@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const BASE_URL = 'http://192.168.1.2:5000';
+export const BASE_URL = 'https://safetour-project-5wwy.onrender.com';
 
 const API = axios.create({
   baseURL: BASE_URL,
