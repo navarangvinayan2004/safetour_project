@@ -1,512 +1,296 @@
 import Slider from "@react-native-community/slider";
 import { Picker } from "@react-native-picker/picker";
 import { useEffect, useState } from "react";
-
 import {
-    ActivityIndicator,
-    Alert,
-    Button,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Alert,
+  Button,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from "react-native";
 
-import MapView, {
-    Circle,
-    MapPressEvent,
-    Marker
-} from "react-native-maps";
+import MapView, { Circle, MapPressEvent, Marker } from "react-native-maps";
 
 import API from "../api";
 
 type Coordinate = {
-  latitude: number;
-  longitude: number;
+ latitude: number;
+ longitude: number;
 };
 
 type DangerZone = {
-  _id: string;
-  latitude: number;
-  longitude: number;
-  radius: number;
-  severity: string;
-  type: string;
-  description?: string;
+ _id: string;
+ latitude: number;
+ longitude: number;
+ radius: number;
+ severity: string;
+ type: string;
+ description?: string;
 };
 
 export default function ZoneManager() {
 
-  const [loading, setLoading] = useState(true);
+ const [point, setPoint] = useState<Coordinate | null>(null);
 
-  const [point, setPoint] =
-    useState<Coordinate | null>(null);
+ const [type, setType] = useState("crime");
+ const [severity, setSeverity] = useState("high");
+ const [description, setDescription] = useState("");
 
-  const [type, setType] =
-    useState("crime");
+ const [radius, setRadius] = useState(500);
 
-  const [severity, setSeverity] =
-    useState("high");
+ const [dangerZones, setDangerZones] = useState<DangerZone[]>([]);
 
-  const [description, setDescription] =
-    useState("");
+ //--------------------------------------------------
+ // LOAD ZONES
+ //--------------------------------------------------
 
-  const [radius, setRadius] =
-    useState(500);
+ const loadZones = async () => {
 
-  const [dangerZones, setDangerZones] =
-    useState<DangerZone[]>([]);
+  try {
 
-  //--------------------------------------------------
-  // LOAD ZONES
-  //--------------------------------------------------
+   const res = await API.get("/api/zones");
 
-  const loadZones = async () => {
+   setDangerZones(res.data);
 
-    try {
+  } catch {
 
-      setLoading(true);
-
-      const res =
-        await API.get("/api/zones");
-
-      if (Array.isArray(res.data)) {
-
-        const validZones =
-          res.data.filter((zone: DangerZone) => {
-
-            return (
-              zone.latitude &&
-              zone.longitude &&
-              !isNaN(Number(zone.latitude)) &&
-              !isNaN(Number(zone.longitude))
-            );
-
-          });
-
-        setDangerZones(validZones);
-
-      }
-
-    } catch (err) {
-
-      console.log("Failed to load zones", err);
-
-      Alert.alert(
-        "Error",
-        "Failed to load danger zones"
-      );
-
-    } finally {
-
-      setLoading(false);
-
-    }
-
-  };
-
-  useEffect(() => {
-
-    loadZones();
-
-  }, []);
-
-  //--------------------------------------------------
-  // SAVE ZONE
-  //--------------------------------------------------
-
-  const saveZone = async () => {
-
-    if (!point) {
-
-      Alert.alert(
-        "Select Location",
-        "Tap map to select location"
-      );
-
-      return;
-    }
-
-    try {
-
-      await API.post("/api/zones", {
-        latitude: point.latitude,
-        longitude: point.longitude,
-        radius,
-        severity,
-        type,
-        description
-      });
-
-      Alert.alert(
-        "Success",
-        "Danger zone saved"
-      );
-
-      setPoint(null);
-      setDescription("");
-
-      loadZones();
-
-    } catch (err) {
-
-      console.log("Save Zone Error:", err);
-
-      Alert.alert(
-        "Error",
-        "Failed to save zone"
-      );
-
-    }
-
-  };
-
-  //--------------------------------------------------
-  // DELETE ZONE
-  //--------------------------------------------------
-
-  const deleteZone = async (
-    zoneId: string
-  ) => {
-
-    try {
-
-      await API.delete(
-        `/api/zones/${zoneId}`
-      );
-
-      Alert.alert(
-        "Deleted",
-        "Zone deleted"
-      );
-
-      loadZones();
-
-    } catch (err) {
-
-      console.log("Delete Error:", err);
-
-      Alert.alert(
-        "Error",
-        "Failed to delete zone"
-      );
-
-    }
-
-  };
-
-  //--------------------------------------------------
-  // MAP PRESS
-  //--------------------------------------------------
-
-  const handleMapPress = (
-    e: MapPressEvent
-  ) => {
-
-    try {
-
-      const coord =
-        e.nativeEvent.coordinate;
-
-      setPoint({
-        latitude: coord.latitude,
-        longitude: coord.longitude
-      });
-
-    } catch (err) {
-
-      console.log("Map Press Error:", err);
-
-    }
-
-  };
-
-  //--------------------------------------------------
-  // LOADING
-  //--------------------------------------------------
-
-  if (loading) {
-
-    return (
-
-      <View style={styles.center}>
-
-        <ActivityIndicator
-          size="large"
-          color="#00ffff"
-        />
-
-        <Text style={styles.loadingText}>
-          Loading danger zones...
-        </Text>
-
-      </View>
-
-    );
+   console.log("Failed to load zones");
 
   }
 
-  //--------------------------------------------------
-  // UI
-  //--------------------------------------------------
+ };
 
-  return (
+ useEffect(() => {
+  loadZones();
+ }, []);
 
-    <View style={styles.container}>
+ //--------------------------------------------------
+ // SAVE ZONE
+ //--------------------------------------------------
 
-      <Text style={styles.title}>
-        ⚠ Mark Danger Zone
-      </Text>
+ const saveZone = async () => {
 
-      <MapView
-        style={styles.map}
-        onPress={handleMapPress}
-        initialRegion={{
-          latitude: 11.8745,
-          longitude: 75.3704,
-          latitudeDelta: 0.2,
-          longitudeDelta: 0.2
-        }}
-      >
+  if (!point) {
+   Alert.alert("Tap map to select location");
+   return;
+  }
 
-        {/* EXISTING ZONES */}
+  try {
 
-        {dangerZones?.map((zone, index) => {
+   await API.post("/api/zones", {
+    latitude: point.latitude,
+    longitude: point.longitude,
+    radius,
+    severity,
+    type,
+    description
+   });
 
-          const latitude =
-            Number(zone.latitude);
+   Alert.alert("Danger zone saved");
 
-          const longitude =
-            Number(zone.longitude);
+   setPoint(null);
+   setDescription("");
 
-          if (
-            isNaN(latitude) ||
-            isNaN(longitude)
-          ) return null;
+   loadZones();
 
-          return (
+  } catch {
 
-            <View
-              key={zone._id || index}
-            >
+   Alert.alert("Failed to save zone");
 
-              <Circle
-                center={{
-                  latitude,
-                  longitude
-                }}
-                radius={
-                  Number(zone.radius) || 500
-                }
-                strokeColor="rgba(255,0,0,0.8)"
-                fillColor="rgba(255,0,0,0.3)"
-              />
+  }
 
-              <Marker
-                coordinate={{
-                  latitude,
-                  longitude
-                }}
-                pinColor="red"
-                onPress={() =>
+ };
 
-                  Alert.alert(
-                    "Danger Zone",
+ //--------------------------------------------------
+ // DELETE ZONE
+ //--------------------------------------------------
 
-                    `${zone.type}
+ const deleteZone = async (zoneId: string) => {
+
+  try {
+
+   await API.delete(`/api/zones/${zoneId}`);
+
+   Alert.alert("Zone deleted");
+
+   loadZones();
+
+  } catch {
+
+   Alert.alert("Failed to delete zone");
+
+  }
+
+ };
+
+ //--------------------------------------------------
+ // MAP PRESS
+ //--------------------------------------------------
+
+ const handleMapPress = (e: MapPressEvent) => {
+
+  const coord = e.nativeEvent.coordinate;
+
+  setPoint({
+   latitude: coord.latitude,
+   longitude: coord.longitude
+  });
+
+ };
+
+ //--------------------------------------------------
+ // UI
+ //--------------------------------------------------
+
+ return (
+
+  <View style={styles.container}>
+
+   <Text style={styles.title}>Mark Danger Zone</Text>
+
+   <MapView style={styles.map} onPress={handleMapPress}>
+
+    {dangerZones.map(zone => (
+
+     <View key={zone._id}>
+
+      <Circle
+       center={{
+        latitude: zone.latitude,
+        longitude: zone.longitude
+       }}
+       radius={zone.radius}
+       strokeColor="rgba(255,0,0,0.8)"
+       fillColor="rgba(255,0,0,0.3)"
+      />
+
+      <Marker
+       coordinate={{
+        latitude: zone.latitude,
+        longitude: zone.longitude
+       }}
+       pinColor="red"
+       onPress={() =>
+        Alert.alert(
+         "Danger Zone",
+         `${zone.type}
 
 Severity: ${zone.severity}
 
 ${zone.description || "No description"}`,
+         [
+          { text: "Cancel" },
+          {
+           text: "Delete",
+           style: "destructive",
+           onPress: () => deleteZone(zone._id)
+          }
+         ]
+        )
+       }
+      />
 
-                    [
-                      {
-                        text: "Cancel"
-                      },
+     </View>
 
-                      {
-                        text: "Delete",
-                        style: "destructive",
+    ))}
 
-                        onPress: () =>
-                          deleteZone(zone._id)
-                      }
-                    ]
-                  )
+    {point && (
+     <>
+      <Marker coordinate={point} />
+      <Circle
+       center={point}
+       radius={radius}
+       strokeColor="red"
+       fillColor="rgba(255,0,0,0.3)"
+      />
+     </>
+    )}
 
-                }
-              />
+   </MapView>
 
-            </View>
+   <View style={styles.bottomPanel}>
 
-          );
+    <ScrollView>
 
-        })}
+     <Text>Danger Type</Text>
 
-        {/* SELECTED POINT */}
+     <Picker selectedValue={type} onValueChange={setType}>
+      <Picker.Item label="Crime" value="crime" />
+      <Picker.Item label="Accident" value="accident" />
+      <Picker.Item label="Weather" value="weather" />
+     </Picker>
 
-        {point && (
+     <Text>Severity</Text>
 
-          <>
+     <Picker selectedValue={severity} onValueChange={setSeverity}>
+      <Picker.Item label="Low" value="low" />
+      <Picker.Item label="Medium" value="medium" />
+      <Picker.Item label="High" value="high" />
+     </Picker>
 
-            <Marker coordinate={point} />
+     <Text>Description</Text>
 
-            <Circle
-              center={point}
-              radius={radius}
-              strokeColor="red"
-              fillColor="rgba(255,0,0,0.3)"
-            />
+     <TextInput
+      placeholder="Enter short description..."
+      value={description}
+      onChangeText={setDescription}
+      style={styles.input}
+      multiline
+     />
 
-          </>
+     <Text>Radius: {radius} m</Text>
 
-        )}
+     <Slider
+      minimumValue={100}
+      maximumValue={2000}
+      step={100}
+      value={radius}
+      onValueChange={setRadius}
+     />
 
-      </MapView>
+     {point && <Button title="Save Zone" onPress={saveZone} />}
 
-      {/* CONTROL PANEL */}
+    </ScrollView>
 
-      <View style={styles.bottomPanel}>
+   </View>
 
-        <ScrollView>
+  </View>
 
-          <Text>Danger Type</Text>
-
-          <Picker
-            selectedValue={type}
-            onValueChange={setType}
-          >
-
-            <Picker.Item
-              label="Crime"
-              value="crime"
-            />
-
-            <Picker.Item
-              label="Accident"
-              value="accident"
-            />
-
-            <Picker.Item
-              label="Weather"
-              value="weather"
-            />
-
-          </Picker>
-
-          <Text>Severity</Text>
-
-          <Picker
-            selectedValue={severity}
-            onValueChange={setSeverity}
-          >
-
-            <Picker.Item
-              label="Low"
-              value="low"
-            />
-
-            <Picker.Item
-              label="Medium"
-              value="medium"
-            />
-
-            <Picker.Item
-              label="High"
-              value="high"
-            />
-
-          </Picker>
-
-          <Text>Description</Text>
-
-          <TextInput
-            placeholder="Enter short description..."
-            value={description}
-            onChangeText={setDescription}
-            style={styles.input}
-            multiline
-          />
-
-          <Text>
-            Radius: {radius} m
-          </Text>
-
-          <Slider
-            minimumValue={100}
-            maximumValue={2000}
-            step={100}
-            value={radius}
-            onValueChange={setRadius}
-          />
-
-          {point && (
-
-            <Button
-              title="Save Zone"
-              onPress={saveZone}
-            />
-
-          )}
-
-        </ScrollView>
-
-      </View>
-
-    </View>
-
-  );
+ );
 
 }
 
 const styles = StyleSheet.create({
 
-  container: {
-    flex: 1,
-    backgroundColor: "black"
-  },
+ container: { flex: 1 },
 
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "black"
-  },
+ title: {
+  fontSize: 18,
+  textAlign: "center",
+  marginTop: 10
+ },
 
-  loadingText: {
-    color: "white",
-    marginTop: 10
-  },
+ map: {
+  flex: 1
+ },
 
-  title: {
-    fontSize: 18,
-    textAlign: "center",
-    marginTop: 10,
-    marginBottom: 10,
-    color: "white",
-    fontWeight: "bold"
-  },
+ bottomPanel: {
+  maxHeight: 300,
+  backgroundColor: "#fff",
+  paddingHorizontal: 15,
+  paddingTop: 10,
+  borderTopWidth: 1,
+  borderColor: "#ddd"
+ },
 
-  map: {
-    flex: 1
-  },
-
-  bottomPanel: {
-    maxHeight: 300,
-    backgroundColor: "#fff",
-    paddingHorizontal: 15,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderColor: "#ddd"
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10
-  }
+ input: {
+  borderWidth: 1,
+  borderColor: "#ccc",
+  borderRadius: 10,
+  padding: 10,
+  marginBottom: 10
+ }
 
 });

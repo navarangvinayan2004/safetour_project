@@ -13,499 +13,433 @@ import {
   View
 } from "react-native";
 
-import MapView, {
-  Circle,
-  Marker,
-  Polyline
-} from "react-native-maps";
+import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 
 import API from "../api";
 
-export default function MapScreen() {
+export default function MapScreen(){
 
-  const router = useRouter();
-  const { lat, lng } = useLocalSearchParams();
+ const router = useRouter();
+ const {lat,lng} = useLocalSearchParams();
 
-  const mapRef = useRef<MapView>(null);
+ const mapRef = useRef<MapView>(null);
 
-  const [loading, setLoading] = useState(true);
+ const [location,setLocation] = useState<any>(null);
+ const [destination,setDestination] = useState<any>(null);
 
-  const [location, setLocation] = useState<any>(null);
-  const [destination, setDestination] = useState<any>(null);
+ const [dangerZones,setDangerZones] = useState<any[]>([]);
 
-  const [dangerZones, setDangerZones] = useState<any[]>([]);
+ const [routeInfo,setRouteInfo] = useState<any>(null);
 
-  const [routeInfo, setRouteInfo] = useState<any>(null);
+ const [safeCoords,setSafeCoords] = useState<any[]>([]);
+ const [dangerCoords,setDangerCoords] = useState<any[]>([]);
 
-  const [safeCoords, setSafeCoords] = useState<any[]>([]);
-  const [dangerCoords, setDangerCoords] = useState<any[]>([]);
+ const [error,setError] = useState<string|null>(null);
 
-  const [error, setError] = useState<string | null>(null);
+ //--------------------------------------------------
+ // DISTANCE FUNCTION
+ //--------------------------------------------------
 
-  //--------------------------------------------------
-  // DISTANCE FUNCTION
-  //--------------------------------------------------
+ const getDistance = (lat1:number,lon1:number,lat2:number,lon2:number)=>{
 
-  const getDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ) => {
+  const R = 6371e3;
 
-    const R = 6371e3;
+  const φ1 = lat1*Math.PI/180;
+  const φ2 = lat2*Math.PI/180;
 
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2-lat1)*Math.PI/180;
+  const Δλ = (lon2-lon1)*Math.PI/180;
 
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a =
+   Math.sin(Δφ/2)*Math.sin(Δφ/2)+
+   Math.cos(φ1)*Math.cos(φ2)*
+   Math.sin(Δλ/2)*Math.sin(Δλ/2);
 
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) *
-      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R*c;
 
-    return R * c;
+ };
+
+ //--------------------------------------------------
+ // GET USER LOCATION
+ //--------------------------------------------------
+
+ useEffect(()=>{
+
+  (async()=>{
+
+   const {status} =
+   await Location.requestForegroundPermissionsAsync();
+
+   if(status !== "granted"){
+    setError("Location permission denied");
+    return;
+   }
+
+   const loc =
+   await Location.getCurrentPositionAsync({});
+
+   setLocation(loc.coords);
+
+  })();
+
+ },[]);
+
+ //--------------------------------------------------
+ // LOAD DANGER ZONES
+ //--------------------------------------------------
+
+ useEffect(()=>{
+
+  const loadZones = async()=>{
+
+   try{
+
+    const res =
+    await API.get("/api/zones");
+
+    setDangerZones(res.data);
+
+   }catch{
+
+    console.log("Failed to load zones");
+
+   }
+
   };
 
-  //--------------------------------------------------
-  // GET USER LOCATION
-  //--------------------------------------------------
+  loadZones();
 
-  useEffect(() => {
+ },[]);
 
-    (async () => {
+ //--------------------------------------------------
+ // RECEIVE DESTINATION
+ //--------------------------------------------------
 
-      try {
+ useEffect(() => {
 
-        const { status } =
-          await Location.requestForegroundPermissionsAsync();
+ if (lat && lng) {
 
-        if (status !== "granted") {
-          setError("Location permission denied");
-          setLoading(false);
-          return;
-        }
+  const dest = {
+   lat,
+   lng
+  };
 
-        const loc =
-          await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High
-          });
+  AsyncStorage.setItem(
+   "destination",
+   JSON.stringify(dest)
+  );
 
-        setLocation({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05
-        });
+  setDestination({
+  latitude: parseFloat(lat as string),
+  longitude: parseFloat(lng as string)
+});
 
-      } catch (err) {
+ }
 
-        console.log("Location Error:", err);
-        setError("Failed to fetch location");
+}, [lat, lng]);
+ //--------------------------------------------------
+ // GET ROUTE
+ //--------------------------------------------------
 
-      } finally {
+ useEffect(()=>{
 
-        setLoading(false);
+  if(!destination || !location) return;
 
-      }
+  const getRoute = async()=>{
 
-    })();
+   try{
 
-  }, []);
+    const res = await fetch(
+     `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${location.longitude},${location.latitude}&end=${destination.longitude},${destination.latitude}`
+    );
 
-  //--------------------------------------------------
-  // LOAD DANGER ZONES
-  //--------------------------------------------------
+    const data = await res.json();
 
-  useEffect(() => {
-
-    const loadZones = async () => {
-
-      try {
-
-        const res =
-          await API.get("/api/zones");
-
-        if (Array.isArray(res.data)) {
-          setDangerZones(res.data);
-        }
-
-      } catch (err) {
-
-        console.log("Failed to load zones", err);
-
-      }
-
-    };
-
-    loadZones();
-
-  }, []);
-
-  //--------------------------------------------------
-  // RECEIVE DESTINATION
-  //--------------------------------------------------
-
-  useEffect(() => {
-
-    if (lat && lng) {
-
-      const parsedLat = parseFloat(lat as string);
-      const parsedLng = parseFloat(lng as string);
-
-      if (isNaN(parsedLat) || isNaN(parsedLng)) {
-        return;
-      }
-
-      const dest = {
-        lat: parsedLat,
-        lng: parsedLng
-      };
-
-      AsyncStorage.setItem(
-        "destination",
-        JSON.stringify(dest)
-      );
-
-      setDestination({
-        latitude: parsedLat,
-        longitude: parsedLng
-      });
-
+    if(!data.features || data.features.length===0){
+     console.log("No route found");
+     return;
     }
 
-  }, [lat, lng]);
+    const coords =
+    data.features[0].geometry.coordinates.map((c:any)=>({
+     latitude:c[1],
+     longitude:c[0]
+    }));
 
-  //--------------------------------------------------
-  // GET ROUTE
-  //--------------------------------------------------
+    //------------------------------------------------
+    // CHECK DANGER ZONES
+    //------------------------------------------------
 
-  useEffect(() => {
+    let safeSegments = [];
+let dangerSegments = [];
+let foundDanger = false;
 
-    if (!destination || !location) return;
+for (let i = 0; i < coords.length - 1; i++) {
 
-    const getRoute = async () => {
+  const p1 = coords[i];
+  const p2 = coords[i + 1];
 
-      try {
+  let isDanger = false;
 
-        const res = await fetch(
-          `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${location.longitude},${location.latitude}&end=${destination.longitude},${destination.latitude}`
-        );
+  dangerZones.forEach(zone => {
 
-        const data = await res.json();
+    const d = getDistance(
+      p1.latitude,
+      p1.longitude,
+      zone.latitude,
+      zone.longitude
+    );
 
-        if (
-          !data.features ||
-          !data.features[0]
-        ) {
-          console.log("No route found");
-          return;
-        }
+    if (d < zone.radius) {
+      isDanger = true;
+      foundDanger = true;
+    }
 
-        const coords =
-          data.features[0].geometry.coordinates.map((c: any) => ({
-            latitude: c[1],
-            longitude: c[0]
-          }));
+  });
 
-        let safeSegments: any[] = [];
-        let dangerSegments: any[] = [];
-        let foundDanger = false;
+  if (isDanger) {
+    dangerSegments.push([p1, p2]);
+  } else {
+    safeSegments.push([p1, p2]);
+  }
 
-        for (let i = 0; i < coords.length - 1; i++) {
+}
 
-          const p1 = coords[i];
-          const p2 = coords[i + 1];
+setSafeCoords(safeSegments.flat());
+setDangerCoords(dangerSegments.flat());
 
-          let isDanger = false;
+if(foundDanger){
+  Alert.alert(
+    "⚠ Danger Route Warning",
+    "This route passes through danger zones"
+  );
+}
 
-          dangerZones?.forEach(zone => {
+    //------------------------------------------------
+    // ROUTE INFO
+    //------------------------------------------------
 
-            if (
-              !zone.latitude ||
-              !zone.longitude
-            ) return;
+    setRouteInfo({
+     distance:data.features[0].properties.summary.distance/1000,
+     duration:data.features[0].properties.summary.duration/60
+    });
 
-            const d = getDistance(
-              p1.latitude,
-              p1.longitude,
-              Number(zone.latitude),
-              Number(zone.longitude)
-            );
+    //------------------------------------------------
+    // ZOOM MAP TO ROUTE
+    //------------------------------------------------
 
-            if (d < zone.radius) {
-              isDanger = true;
-              foundDanger = true;
-            }
+    mapRef.current?.fitToCoordinates(coords,{
+     edgePadding:{
+      top:100,
+      right:100,
+      bottom:300,
+      left:100
+     },
+     animated:true
+    });
 
-          });
+   }catch(err){
 
-          if (isDanger) {
-            dangerSegments.push([p1, p2]);
-          } else {
-            safeSegments.push([p1, p2]);
-          }
+    console.log("Route error",err);
 
-        }
-
-        setSafeCoords(safeSegments.flat());
-        setDangerCoords(dangerSegments.flat());
-
-        if (foundDanger) {
-
-          Alert.alert(
-            "⚠ Danger Route Warning",
-            "This route passes through danger zones"
-          );
-
-        }
-
-        setRouteInfo({
-          distance:
-            data.features[0].properties.summary.distance / 1000,
-          duration:
-            data.features[0].properties.summary.duration / 60
-        });
-
-        mapRef.current?.fitToCoordinates(coords, {
-          edgePadding: {
-            top: 100,
-            right: 100,
-            bottom: 300,
-            left: 100
-          },
-          animated: true
-        });
-
-      } catch (err) {
-
-        console.log("Route error", err);
-
-      }
-
-    };
-
-    getRoute();
-
-  }, [destination, location, dangerZones]);
-
-  //--------------------------------------------------
-  // START GOOGLE NAVIGATION
-  //--------------------------------------------------
-
-  const startNavigation = () => {
-
-    if (!destination) return;
-
-    const url =
-      `https://www.google.com/maps/dir/?api=1&destination=${destination.latitude},${destination.longitude}&travelmode=driving`;
-
-    Linking.openURL(url);
+   }
 
   };
 
-  //--------------------------------------------------
-  // LOADING
-  //--------------------------------------------------
+  getRoute();
 
-  if (loading) {
+ },[destination,location,dangerZones]);
 
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#00ffff" />
-        <Text style={{ color: "white", marginTop: 10 }}>
-          Loading map...
-        </Text>
-      </View>
-    );
+ //--------------------------------------------------
+ // START GOOGLE NAVIGATION
+ //--------------------------------------------------
 
-  }
+ const startNavigation = ()=>{
 
-  if (error) {
+  if(!destination) return;
 
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: "white" }}>
-          {error}
-        </Text>
-      </View>
-    );
+  const url =
+  `https://www.google.com/maps/dir/?api=1&destination=${destination.latitude},${destination.longitude}&travelmode=driving`;
 
-  }
+  Linking.openURL(url);
 
-  if (!location) return null;
+ };
 
-  //--------------------------------------------------
-  // UI
-  //--------------------------------------------------
+ //--------------------------------------------------
+ // LOADING
+ //--------------------------------------------------
 
-  return (
+ if(error){
+  return(
+   <View style={styles.center}>
+    <Text>{error}</Text>
+   </View>
+  );
+ }
 
-    <View style={{ flex: 1 }}>
+ if(!location){
+  return(
+   <View style={styles.center}>
+    <ActivityIndicator size="large"/>
+    <Text>Fetching location...</Text>
+   </View>
+  );
+ }
 
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={location}
-        showsUserLocation
-      >
+ //--------------------------------------------------
+ // UI
+ //--------------------------------------------------
 
-        {/* DANGER ZONE CIRCLES */}
+ return(
 
-        {dangerZones?.map((zone, index) => (
+  <View style={{flex:1}}>
 
-          <Circle
-            key={`circle-${zone._id || index}`}
-            center={{
-              latitude: Number(zone.latitude),
-              longitude: Number(zone.longitude),
-            }}
-            radius={Number(zone.radius) || 100}
-            strokeColor="rgba(255,0,0,0.8)"
-            fillColor="rgba(255,0,0,0.3)"
-          />
+   <MapView
+    ref={mapRef}
+    style={styles.map}
+    initialRegion={{
+     latitude:location.latitude,
+     longitude:location.longitude,
+     latitudeDelta:0.05,
+     longitudeDelta:0.05
+    }}
+    showsUserLocation
+   >
 
-        ))}
+    {/* DANGER ZONES */}
 
-        {/* DANGER ZONE MARKERS */}
+    {/* DANGER ZONE CIRCLES */}
+{dangerZones.map((zone) => (
+  <Circle
+    key={`circle-${zone._id}`}
+    center={{
+      latitude: Number(zone.latitude),
+      longitude: Number(zone.longitude),
+    }}
+    radius={zone.radius}
+    strokeColor="rgba(255,0,0,0.8)"
+    fillColor="rgba(255,0,0,0.3)"
+  />
+))}
 
-        {dangerZones?.map((zone, index) => (
+{/* DANGER ZONE MARKERS */}
+{dangerZones.map((zone) => (
+  <Marker
+    key={`marker-${zone._id}`}
+    coordinate={{
+      latitude: Number(zone.latitude),
+      longitude: Number(zone.longitude),
+    }}
+    pinColor="red"
+    onPress={() =>
+      Alert.alert(
+        "⚠ Danger Zone",
+        `${zone.type} | Severity ${zone.severity}\n\n${zone.description || ""}`
+      )
+    }
+  />
+))}
 
-          <Marker
-            key={`marker-${zone._id || index}`}
-            coordinate={{
-              latitude: Number(zone.latitude),
-              longitude: Number(zone.longitude),
-            }}
-            pinColor="red"
-            onPress={() =>
-              Alert.alert(
-                "⚠ Danger Zone",
-                `${zone.type || "Unknown"} | Severity ${zone.severity || "N/A"}\n\n${zone.description || ""
-                }`
-              )
-            }
-          />
+    {/* DESTINATION */}
 
-        ))}
+    {destination && <Marker coordinate={destination}/>}
 
-        {/* DESTINATION */}
+    {/* SAFE ROUTE */}
 
-        {destination?.latitude &&
-          destination?.longitude && (
+    {safeCoords.length>0 &&(
 
-            <Marker coordinate={destination} />
+     <Polyline
+      coordinates={safeCoords}
+      strokeWidth={4}
+      strokeColor="blue"
+     />
 
-          )}
+    )}
 
-        {/* SAFE ROUTE */}
+    {/* DANGER ROUTE */}
 
-        {safeCoords.length > 0 && (
+    {dangerCoords.length>0 &&(
 
-          <Polyline
-            coordinates={safeCoords}
-            strokeWidth={4}
-            strokeColor="blue"
-          />
+     <Polyline
+      coordinates={dangerCoords}
+      strokeWidth={5}
+      strokeColor="red"
+     />
 
-        )}
+    )}
 
-        {/* DANGER ROUTE */}
+   </MapView>
 
-        {dangerCoords.length > 0 && (
+   {/* SEARCH BAR */}
 
-          <Polyline
-            coordinates={dangerCoords}
-            strokeWidth={5}
-            strokeColor="red"
-          />
+   <View style={styles.searchContainer}>
+    <Text
+     style={styles.searchInput}
+     onPress={()=>router.push("/search")}
+    >
+     Search destination
+    </Text>
+   </View>
 
-        )}
+   {/* ROUTE INFO PANEL */}
 
-      </MapView>
+   {routeInfo &&(
 
-      {/* SEARCH BAR */}
+    <View style={styles.routePanel}>
 
-      <View style={styles.searchContainer}>
+     <Text style={{fontSize:18,fontWeight:"bold"}}>
+      {routeInfo.duration.toFixed(0)} min
+      ({routeInfo.distance.toFixed(1)} km)
+     </Text>
 
-        <Text
-          style={styles.searchInput}
-          onPress={() => router.push("/search")}
-        >
-          Search destination
-        </Text>
+     <Text>Best route based on distance</Text>
 
-      </View>
-
-      {/* ROUTE INFO PANEL */}
-
-      {routeInfo && (
-
-        <View style={styles.routePanel}>
-
-          <Text style={{
-            fontSize: 18,
-            fontWeight: "bold"
-          }}>
-            {routeInfo.duration.toFixed(0)} min
-            ({routeInfo.distance.toFixed(1)} km)
-          </Text>
-
-          <Text>
-            Best route based on distance
-          </Text>
-
-          <Button
-            title="Start Navigation"
-            onPress={startNavigation}
-          />
-
-        </View>
-
-      )}
+     <Button
+      title="Start Navigation"
+      onPress={startNavigation}
+     />
 
     </View>
 
-  );
+   )}
+
+  </View>
+
+ );
 
 }
 
 const styles = StyleSheet.create({
 
-  map: {
-    flex: 1
-  },
+ map:{flex:1},
 
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "black"
-  },
+ center:{
+  flex:1,
+  justifyContent:"center",
+  alignItems:"center"
+ },
 
-  searchContainer: {
-    position: "absolute",
-    top: 50,
-    width: "90%",
-    alignSelf: "center"
-  },
+ searchContainer:{
+  position:"absolute",
+  top:50,
+  width:"90%",
+  alignSelf:"center"
+ },
 
-  searchInput: {
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 10
-  },
+ searchInput:{
+  backgroundColor:"#fff",
+  padding:15,
+  borderRadius:10
+ },
 
-  routePanel: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
-    backgroundColor: "#fff",
-    padding: 20
-  }
+ routePanel:{
+  position:"absolute",
+  bottom:0,
+  width:"100%",
+  backgroundColor:"#fff",
+  padding:20
+ }
 
 });
