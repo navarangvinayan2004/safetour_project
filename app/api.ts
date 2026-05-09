@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const BASE_URL = 'https://safetour-project-5wwy.onrender.com';
+export const BASE_URL = 'https://safetour-project-1-fovp.onrender.com';
 
 const API = axios.create({
   baseURL: BASE_URL,
