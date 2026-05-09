@@ -29,7 +29,10 @@ router.get("/weather", async (req, res) => {
   } catch (err) {
 
     console.error("Weather Error:", err.message);
-    res.status(500).json({ error: "Weather fetch failed" });
+
+    res.status(500).json({
+      error: "Weather fetch failed"
+    });
 
   }
 });
@@ -38,6 +41,7 @@ router.get("/weather", async (req, res) => {
 /* ------------------- REVERSE GEOCODE ------------------- */
 
 router.get("/reverse", async (req, res) => {
+
   try {
 
     const { latitude, longitude } = req.query;
@@ -75,15 +79,17 @@ router.get("/reverse", async (req, res) => {
   } catch (err) {
 
     console.error("Reverse Geocode Error:", err.message);
-    res.status(500).json({ error: "City fetch failed" });
+
+    res.status(500).json({
+      error: "City fetch failed"
+    });
 
   }
+
 });
 
 
-/* ------------------- GEMINI AI KNOW ABOUT ------------------- */
-
-const cache = {};
+/* ------------------- AI TOURIST GUIDELINES ------------------- */
 
 router.get("/ai-guidelines", async (req, res) => {
 
@@ -95,14 +101,6 @@ router.get("/ai-guidelines", async (req, res) => {
       return res.json({
         guidelines: "No location information available."
       });
-    }
-
-    const cityKey = city.toLowerCase();
-
-    /* ---------- CACHE CHECK ---------- */
-
-    if (cache[cityKey]) {
-      return res.json({ guidelines: cache[cityKey] });
     }
 
     /* ---------- GEMINI REQUEST ---------- */
@@ -140,22 +138,21 @@ Use bullet points and keep it short.`
 
     const text =
       response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Tourist information not available.";
-
-    /* ---------- SAVE CACHE ---------- */
-
-    cache[cityKey] = text;
+      `Tourist information not available for ${city}.`;
 
     res.json({ guidelines: text });
 
   } catch (err) {
 
-    console.error("Gemini Error:", err.response?.data || err.message);
+    console.error(
+      "Gemini Error:",
+      err.response?.data || err.message
+    );
 
-    /* ---------- FALLBACK WHEN GEMINI FAILS ---------- */
+    /* ---------- FALLBACK RESPONSE ---------- */
 
     res.json({
-  guidelines: `Tourist Guide for ${city}
+      guidelines: `Tourist Guide for ${city}
 
 Tourist Attractions
 • Explore famous attractions and scenic locations in ${city}
@@ -172,7 +169,7 @@ Safety Tips
 • Avoid isolated places at night
 • Keep valuables secure
 • Follow local safety instructions`
-});
+    });
 
   }
 
