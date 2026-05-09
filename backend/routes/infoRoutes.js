@@ -155,20 +155,24 @@ Use bullet points and keep it short.`
     /* ---------- FALLBACK WHEN GEMINI FAILS ---------- */
 
     res.json({
-      guidelines: `Tourist Attractions
-• Popular temples, beaches and cultural sites
+  guidelines: `Tourist Guide for ${city}
+
+Tourist Attractions
+• Explore famous attractions and scenic locations in ${city}
 
 Famous For
-• Local food, traditions and festivals
+• Local food, traditions and cultural experiences of ${city}
 
 Local Tips
-• Visit during morning or evening hours
-• Use local transport for short distances
+• Visit popular places during daytime
+• Use trusted local transportation
+• Stay hydrated and keep emergency contacts ready
 
 Safety Tips
 • Avoid isolated places at night
-• Keep valuables secure`
-    });
+• Keep valuables secure
+• Follow local safety instructions`
+});
 
   }
 
