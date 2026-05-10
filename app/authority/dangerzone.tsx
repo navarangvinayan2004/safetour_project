@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
  },
 
  map: {
-  height: "45%"
+  height: "55%"
  },
 
  bottomPanel: {
