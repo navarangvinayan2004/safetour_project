@@ -273,11 +273,11 @@ const styles = StyleSheet.create({
  },
 
  map: {
-  flex: 1
+  height: "45%"
  },
 
  bottomPanel: {
-  maxHeight: 300,
+  flex: 1,
   backgroundColor: "#fff",
   paddingHorizontal: 15,
   paddingTop: 10,
